@@ -624,7 +624,10 @@ def _show_next_heat(model: Model, current: raceinfo.Heat) -> None:
         show_results=False,
     )
 
-    model.scoreboard.set(scoreboard.image)
+    if model.event_results_active:
+        model.event_results_restore_image = scoreboard.image
+    else:
+        model.scoreboard.set(scoreboard.image)
 
 def _process_new_result(model: Model, file: str) -> None:
     """Process a new race result that has been detected."""
