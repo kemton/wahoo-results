@@ -29,6 +29,7 @@ from tkinter import BooleanVar, DoubleVar, IntVar, StringVar, Tk, Toplevel, Vari
 from typing import Generic, TypeVar
 
 import PIL.Image as PILImage
+from PIL import Image
 
 from imagecast_types import DeviceStatus
 from raceinfo import FullProgram, Heat
@@ -170,6 +171,7 @@ class Model:
         self.show_scoreboard_window = CallbackList()
         self.scoreboard_window: Toplevel | None = None
         self.clear_scoreboard = CallbackList()
+        self.show_event_results = CallbackList()
         ########################################
         ## Entry fields
         self.font_normal = StringVar(name="font_normal")
@@ -196,6 +198,10 @@ class Model:
         self.auto_next_heat = BooleanVar(name="auto_next_heat")
         self.next_heat_delay = IntVar(name="next_heat_delay")
         self.next_heat_timer: str | None = None
+        self.event_results_page_time = IntVar(name="event_results_page_time")
+        self.event_results_timer: str | None = None
+        self.event_results_active = False
+        self.event_results_restore_image: Image.Image | None = None
         # Preview
         self.appearance_preview = ImageVar(PILImage.Image())
         # Directories
@@ -211,6 +217,7 @@ class Model:
         self.cc_status = ChromecastStatusVar([])
         self.scoreboard = ImageVar(PILImage.Image())
         self.latest_result = RaceResultVar(None)
+        self.selected_results_event = StringVar(name="selected_results_event")
         # misc
         self.client_id = StringVar(name="client_id")
         self.analytics = BooleanVar(name="analytics")
@@ -269,6 +276,7 @@ class Model:
         self.autosave_scoreboard.set(data.getboolean("autosave_scoreboard", False))
         self.auto_next_heat.set(data.getboolean("auto_next_heat", False))
         self.next_heat_delay.set(data.getint("next_heat_delay", 8))
+        self.event_results_page_time.set(data.getint("event_results_page_time", 5))
         self.dir_startlist.set(data.get("dir_startlist", "C:\\swmeets8"))
         self.result_format.set(data.get("result_format", "Dolphin - do4"))
         self.dir_results.set(data.get("dir_results", "C:\\CTSDolphin"))
@@ -317,6 +325,7 @@ class Model:
             "analytics": str(self.analytics.get()),
             "auto_next_heat": str(self.auto_next_heat.get()),
             "next_heat_delay": str(self.next_heat_delay.get()),
+            "event_results_page_time": str(self.event_results_page_time.get()),
         }
         with open(filename, "w", encoding="utf-8") as file:
             config.write(file)

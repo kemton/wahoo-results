@@ -22,7 +22,7 @@ from PIL.ImageEnhance import Brightness
 
 import fonts
 from model import DQMode, Model
-from raceinfo import Heat, NameMode, format_name, format_time
+from raceinfo import Heat, Lane, NameMode, format_name, format_time
 
 
 def waiting_screen(size: tuple[int, int], model: Model) -> Image.Image:
@@ -42,6 +42,164 @@ def waiting_screen(size: tuple[int, int], model: Model) -> Image.Image:
     draw.text(text_anchor, "Waiting for results...", font=fnt, fill=color, anchor="rs")
     return img
 
+def event_results_screen(
+    size: tuple[int, int],
+    model: Model,
+    event: str,
+    description: str,
+    results: list[tuple[int | None, Lane]],
+) -> Image.Image:
+    """Generate one screen of full-event results."""
+
+    img = Image.new(
+        mode="RGBA",
+        size=size,
+        color=model.color_bg.get(),
+    )
+
+    draw = ImageDraw.Draw(img)
+
+    font_path = fonts.font_to_path(
+        model.font_normal.get(),
+        "Bold",
+    ) or ""
+
+    time_font_path = fonts.font_to_path(
+        model.font_time.get(),
+        "Bold",
+    ) or ""
+
+    # Match the normal scoreboard sizing model:
+    # configured lanes determine how many rows must fit.
+    num_rows = model.num_lanes.get()
+
+    border_fraction = 0.03
+    usable_height = size[1] * (1 - (2 * border_fraction))
+
+    # One title row + one heading row + configured result rows.
+    total_lines = num_rows + 2
+
+    line_height = int(usable_height / total_lines)
+
+    title_font_size = int(line_height * 0.85)
+    row_font_size = int(line_height * 0.70)
+
+    title_font = ImageFont.truetype(
+        font_path,
+        title_font_size,
+    )
+
+    normal_font = ImageFont.truetype(
+        font_path,
+        row_font_size,
+    )
+
+    time_font = ImageFont.truetype(
+        time_font_path,
+        row_font_size,
+    )
+
+    edge_l = int(size[0] * 0.05)
+    edge_r = int(size[0] * 0.95)
+
+    y = int(size[1] * border_fraction) + (line_height // 2)
+
+    # Title row
+    draw.text(
+        (edge_l, y),
+        f"Event {event} Results",
+        font=title_font,
+        fill=model.color_event.get(),
+        anchor="lm",
+    )
+
+    draw.text(
+        (edge_r, y),
+        description,
+        font=title_font,
+        fill=model.color_event.get(),
+        anchor="rm",
+    )
+
+    y += line_height
+
+    # Column headings
+    draw.text(
+        (edge_l, y),
+        "Place",
+        font=normal_font,
+        fill=model.color_event.get(),
+        anchor="lm",
+    )
+
+    draw.text(
+        (edge_l + int(size[0] * 0.14), y),
+        "Name",
+        font=normal_font,
+        fill=model.color_event.get(),
+        anchor="lm",
+    )
+
+    draw.text(
+        (edge_r, y),
+        "Time",
+        font=normal_font,
+        fill=model.color_event.get(),
+        anchor="rm",
+    )
+
+    y += line_height
+
+    # Result rows
+    for row_num, (place, lane) in enumerate(results):
+        color = (
+            model.color_odd.get()
+            if row_num % 2 == 0
+            else model.color_even.get()
+        )
+
+        place_text = "DQ" if place is None else str(place)
+
+        draw.text(
+            (edge_l + int(size[0] * 0.04), y),
+            place_text,
+            font=normal_font,
+            fill=color,
+            anchor="mm",
+        )
+
+        raw_name = lane.name or ""
+        name_variants = format_name(
+            NameMode.NONE,
+            raw_name,
+        )
+
+        draw.text(
+            (edge_l + int(size[0] * 0.14), y),
+            name_variants[-1],
+            font=normal_font,
+            fill=color,
+            anchor="lm",
+        )
+
+        if lane.is_dq:
+            time_text = "DQ"
+        elif lane.final_time is not None:
+            time_text = format_time(lane.final_time)
+        else:
+            time_text = ""
+
+        draw.text(
+            (edge_r, y),
+            time_text,
+            font=time_font,
+            fill=color,
+            anchor="rm",
+        )
+
+        y += line_height
+
+    return img
 
 class ScoreboardImage:
     """Generate a scoreboard image from a RaceTimes object."""

@@ -450,6 +450,38 @@ class _configTab(ttk.Frame):
            "Seconds to display results before showing the next heat",
         )
 
+        ttk.Label(
+            opt_frame,
+            text="Event results page:",
+            anchor="e",
+        ).grid(
+            column=3,
+            row=3,
+            sticky="news",
+            padx=(15 * _PADDING, 0),
+        )
+
+        event_results_spin = ttk.Spinbox(
+            opt_frame,
+            from_=1,
+            to=30,
+            increment=1,
+            width=4,
+            textvariable=self._vm.event_results_page_time,
+        )
+
+        event_results_spin.grid(
+            column=4,
+            row=3,
+            sticky="nws",
+            pady=_PADDING,
+        )
+
+        ToolTip(
+            event_results_spin,
+            "Seconds to display each page of full event results",
+        )
+
         return opt_frame
 
     def _preview(self, parent: Widget) -> Widget:
@@ -538,6 +570,7 @@ class _runTab(ttk.Frame):
         frame = ttk.Frame(parent)
         frame.rowconfigure(0, weight=1)
         frame.rowconfigure(1, weight=0)
+        frame.rowconfigure(2, weight=0)
         frame.columnconfigure(0, weight=1)
         latestres = widgets.RaceResultView(
             frame, self._vm.latest_result, time_threshold_var=self._vm.time_threshold
@@ -545,6 +578,7 @@ class _runTab(ttk.Frame):
         latestres.grid(column=0, row=0, sticky="news")
         ToolTip(latestres, "Raw data from the latest race result")
         self._lcolumn_buttonrow(frame).grid(column=0, row=1, sticky="news")
+        self._event_results_controls(frame).grid(column=0, row=2, sticky="news", padx=1, pady=4)
         return frame
 
     def _lcolumn_buttonrow(self, parent: Widget) -> Widget:
@@ -592,4 +626,91 @@ class _runTab(ttk.Frame):
         frame.rowconfigure(0, weight=1)
         widgets.ImageView(frame, self._vm.scoreboard).grid(column=0, row=0)
         ToolTip(frame, "Current contents of the scoreboard")
+        return frame
+
+    def _event_results_controls(self, parent: Widget) -> Widget:
+        frame = ttk.LabelFrame(parent, text="Event Results")
+
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(
+            frame,
+            text="Event:",
+            anchor="e",
+        ).grid(
+            column=0,
+            row=0,
+            sticky="news",
+            padx=2,
+            pady=2,
+        )
+
+        event_dd = ttk.Combobox(
+            frame,
+            textvariable=self._vm.selected_results_event,
+            state="readonly",
+        )
+
+        event_dd.grid(
+            column=1,
+            row=0,
+            sticky="news",
+            padx=2,
+            pady=2,
+        )
+
+        show_btn = ttk.Button(
+            frame,
+            text="Show Results",
+            command=self._vm.show_event_results.run,
+        )
+
+        show_btn.grid(
+            column=2,
+            row=0,
+            padx=2,
+            pady=2,
+        )
+
+        ToolTip(
+            event_dd,
+            "Select an event whose complete results should be displayed",
+        )
+
+        ToolTip(
+            show_btn,
+            "Temporarily display the selected event results on the scoreboard",
+        )
+
+        def update_events(_var_name: str = "", _index: str = "", _mode: str = "") -> None:
+            program = self._vm.startlist_contents.get()
+
+            events: list[str] = []
+
+            for event, heats in program.items():
+                if not heats:
+                    continue
+
+                description = heats[0].description or ""
+
+                if description:
+                    events.append(f"{event} - {description}")
+                else:
+                    events.append(str(event))
+
+            event_dd["values"] = ["Previous", *events]
+
+            current = self._vm.selected_results_event.get()
+
+            if current not in event_dd["values"]:
+                self._vm.selected_results_event.set("Previous")
+
+        self._vm.startlist_contents.trace_add(
+            "write",
+            update_events,
+        )
+
+        self._vm.selected_results_event.set("Previous")
+        update_events()
+
         return frame

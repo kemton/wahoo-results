@@ -52,7 +52,7 @@ from model import Model
 from raceinfo import ColoradoSCB, DolphinEvent, Heat, Time
 from raceinfo.timingsystem import TimingSystem
 from resolver import standard_resolver
-from scoreboard import ScoreboardImage, waiting_screen
+from scoreboard import ScoreboardImage, event_results_screen, waiting_screen
 from scoreboard_window import make_sb_window
 from template import get_template
 from version import SENTRY_DSN, WAHOO_RESULTS_VERSION
@@ -343,6 +343,233 @@ def _process_racedir(model: Model) -> None:
 
     threading.Thread(target=_bg_process_racedir, daemon=True).start()
 
+def _event_results(
+    model: Model,
+    event: str,
+) -> list[tuple[int | None, raceinfo.Lane]]:
+    """Return swimmers for an event in overall result order."""
+
+    lanes: list[raceinfo.Lane] = []
+
+    directory = model.dir_results.get()
+    startlist_dir = model.dir_startlist.get()
+
+    for file in os.scandir(directory):
+        if not any(
+            PurePath(file).match(pattern)
+            for pattern in model.timing_system.patterns
+        ):
+            continue
+
+        result = load_result(
+            model.timing_system,
+            startlist_dir,
+            model.min_times.get(),
+            model.time_threshold.get(),
+            file.path,
+        )
+
+        if result is None or result.event != event:
+            continue
+
+        for lane_num in range(1, 11):
+            lane = result.lane(lane_num)
+
+            if lane.is_empty:
+                continue
+
+            if lane.final_time is None and not lane.is_dq:
+                continue
+
+            lanes.append(lane)
+
+    # Valid finishers are ranked by final time.
+    valid = [
+        lane
+        for lane in lanes
+        if not lane.is_dq and lane.final_time is not None
+    ]
+
+    def _final_time(lane: raceinfo.Lane):
+        assert lane.final_time is not None
+        return lane.final_time
+
+    valid.sort(key=_final_time)
+
+    # DQs appear after all valid finishers.
+    dqs = [lane for lane in lanes if lane.is_dq]
+
+    ranked: list[tuple[int | None, raceinfo.Lane]] = []
+
+    previous_time = None
+    previous_place = 0
+
+    for index, lane in enumerate(valid, start=1):
+        assert lane.final_time is not None
+
+        if previous_time is not None and lane.final_time == previous_time:
+            place = previous_place
+        else:
+            place = index
+
+        ranked.append((place, lane))
+
+        previous_time = lane.final_time
+        previous_place = place
+
+    for lane in dqs:
+        ranked.append((None, lane))
+
+    return ranked
+
+def _paginate_event_results(
+    results: list[tuple[int | None, raceinfo.Lane]],
+    page_size: int,
+) -> list[list[tuple[int | None, raceinfo.Lane]]]:
+    """Split event results into scoreboard-sized groups."""
+
+    return [
+        results[i : i + page_size]
+        for i in range(0, len(results), page_size)
+    ]
+
+def _cancel_event_results(model: Model) -> None:
+    """Cancel any active event-results display."""
+
+    if model.event_results_timer is not None:
+        model.root.after_cancel(model.event_results_timer)
+        model.event_results_timer = None
+
+    model.event_results_active = False
+    model.event_results_restore_image = None
+
+def _show_event_results(
+    model: Model,
+    event: str,
+    description: str,
+) -> None:
+    """Temporarily display full results for an event."""
+
+    ranked = _event_results(model, event)
+
+    if not ranked:
+        return
+
+    pages = _paginate_event_results(ranked, model.num_lanes.get())
+
+    model.event_results_restore_image = model.scoreboard.get()
+    model.event_results_active = True
+
+    def show_page(page_index: int) -> None:
+        if not model.event_results_active:
+            return
+
+        if page_index >= len(pages):
+            model.event_results_active = False
+            model.event_results_timer = None
+
+            if model.event_results_restore_image is not None:
+                model.scoreboard.set(model.event_results_restore_image)
+
+            return
+
+        image = event_results_screen(
+            imagecast_types.IMAGE_SIZE,
+            model,
+            event,
+            description,
+            pages[page_index],
+        )
+
+        model.scoreboard.set(image)
+
+        delay_ms = model.event_results_page_time.get() * 1000
+
+        model.event_results_timer = model.root.after(
+            delay_ms,
+            lambda: show_page(page_index + 1),
+        )
+
+    show_page(0)
+
+def _resolve_results_event(model: Model) -> str | None:
+    """Resolve the Run-tab event selection to an event id."""
+
+    selected = model.selected_results_event.get()
+
+    if not selected:
+        return None
+
+    if selected != "Previous":
+        return selected.split(" - ", 1)[0]
+
+    # Find the most recently completed event.
+    results = model.results_contents.get()
+    program = model.startlist_contents.get()
+
+    completed_events: list[str] = []
+
+    for event, scheduled_heats in program.items():
+        if not scheduled_heats:
+            continue
+
+        completed_heat_numbers = {
+            heat.heat
+            for heat in results
+            if heat.event == event
+        }
+
+        scheduled_heat_numbers = {
+            heat.heat
+            for heat in scheduled_heats
+        }
+
+        if scheduled_heat_numbers.issubset(completed_heat_numbers):
+            completed_events.append(event)
+
+    if not completed_events:
+        return None
+
+    # Preserve meet-program order.
+    program_order = list(program.keys())
+
+    return max(
+        completed_events,
+        key=program_order.index,
+    )
+
+def _event_description(model: Model, event: str) -> str:
+    program = model.startlist_contents.get()
+
+    heats = program.get(event, [])
+
+    if not heats:
+        return ""
+
+    return heats[0].description or ""
+
+def setup_event_results(model: Model) -> None:
+    """Connect the Run-tab event results button."""
+
+    def show_selected_event() -> None:
+        event = _resolve_results_event(model)
+
+        if event is None:
+            return
+
+        description = _event_description(model, event)
+
+        _show_event_results(
+            model,
+            event,
+            description,
+        )
+
+        # Return the selector to its normal default.
+        model.selected_results_event.set("Previous")
+
+    model.show_event_results.add(show_selected_event)
+
 def _find_next_heat(model: Model, current: raceinfo.Heat) -> raceinfo.Heat | None:
     """Find the heat immediately following the supplied heat."""
 
@@ -405,6 +632,9 @@ def _process_new_result(model: Model, file: str) -> None:
                 return
 
             def _ui_update() -> None:
+                # A newly completed race always takes priority over any full-event results slideshow
+                _cancel_event_results(model)
+
                 if model.next_heat_timer is not None:
                     model.root.after_cancel(model.next_heat_timer)
                     model.next_heat_timer = None
@@ -682,6 +912,7 @@ def main() -> None:  # noqa: PLR0915
     # Connections for the run tab
     icast = imagecast.ImageCast(9998)
     setup_run(model, icast)
+    setup_event_results(model)
     icast.start()
 
     # Scoreboard behaviour/actions
