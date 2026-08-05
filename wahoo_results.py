@@ -348,15 +348,19 @@ def _event_results(
     event: str,
 ) -> list[tuple[int | None, raceinfo.Lane]]:
     """Return swimmers for an event in overall result order."""
-
     lanes: list[raceinfo.Lane] = []
 
-    directory = model.dir_results.get()
-    startlist_dir = model.dir_startlist.get()
+    results_dir = model.dir_results.get()
 
-    for file in os.scandir(directory):
+    startlist_dir = model.dir_startlist.get()
+    program = model.startlist_contents.get()
+
+    for entry in os.scandir(results_dir):
+        if not entry.is_file():
+            continue
+
         if not any(
-            PurePath(file).match(pattern)
+            PurePath(entry.name).match(pattern)
             for pattern in model.timing_system.patterns
         ):
             continue
@@ -366,24 +370,34 @@ def _event_results(
             startlist_dir,
             model.min_times.get(),
             model.time_threshold.get(),
-            file.path,
+            entry.path,
         )
 
         if result is None or result.event != event:
             continue
 
+        # Ensure swimmer information is merged from the already-loaded
+        # start list. This is the same program used by the next-heat display.
+        event_heats = program.get(event, [])
+
+        for start_heat in event_heats:
+            if start_heat.heat == result.heat:
+                result.merge(info_from=start_heat)
+                break
+
         for lane_num in range(1, 11):
             lane = result.lane(lane_num)
 
+            # Skip unused lanes
             if lane.is_empty:
                 continue
 
+            # Skip swimmers with neither a valid time nor a DQ
             if lane.final_time is None and not lane.is_dq:
                 continue
 
             lanes.append(lane)
 
-    # Valid finishers are ranked by final time.
     valid = [
         lane
         for lane in lanes
@@ -396,7 +410,6 @@ def _event_results(
 
     valid.sort(key=_final_time)
 
-    # DQs appear after all valid finishers.
     dqs = [lane for lane in lanes if lane.is_dq]
 
     ranked: list[tuple[int | None, raceinfo.Lane]] = []

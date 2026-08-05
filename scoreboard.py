@@ -176,7 +176,7 @@ def event_results_screen(
 
         draw.text(
             (edge_l + int(size[0] * 0.14), y),
-            name_variants[-1],
+            name_variants[0],
             font=normal_font,
             fill=color,
             anchor="lm",
