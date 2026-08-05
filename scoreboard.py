@@ -62,6 +62,7 @@ class ScoreboardImage:
         race: Heat,
         model: Model,
         background: bool = True,
+        show_results: bool = True,
     ):
         """
         Generate a scoreboard image from a RaceTimes object.
@@ -73,6 +74,7 @@ class ScoreboardImage:
         with sentry_sdk.start_span(op="render_image", description="Render image"):
             self._race = race
             self._model = model
+            self._show_results = show_results
             # We save the lane count once because it's used multiple times, and we
             # want to ensure the value doesn't change while we're building the
             # scoreboard image
@@ -215,7 +217,7 @@ class ScoreboardImage:
         )
         draw.text(
             (edge_r, baseline),
-            "Time",
+            "Time" if self._show_results else "",
             font=self._normal_font,
             anchor="rs",
             fill=title_color,
@@ -237,7 +239,10 @@ class ScoreboardImage:
                 fill=color,
             )
             # Place
-            pl_num = self._race.place(lane_num, dq_mode == DQMode.IGNORE)
+            pl_num = None
+
+            if self._show_results:
+                pl_num = self._race.place(lane_num, dq_mode == DQMode.IGNORE)
             pl_color = color
             if pl_num == 1:
                 pl_color = self._model.color_first.get()
@@ -269,7 +274,7 @@ class ScoreboardImage:
                 fill=color,
             )
             # Time
-            time_text = self._time_text(lane_num)
+            time_text = self._time_text(lane_num) if self._show_results else ""
             if self._race.lane(lane_num).is_dq and dq_mode == DQMode.DQ_NOTIME:
                 time_text = "DQ"
             draw.text(

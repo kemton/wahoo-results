@@ -193,6 +193,9 @@ class Model:
         self.time_threshold = DoubleVar(name="time_threshold")
         self.dq_mode = StringVar(name="dq_mode")
         self.autosave_scoreboard = BooleanVar(name="autosave_scoreboard")
+        self.auto_next_heat = BooleanVar(name="auto_next_heat")
+        self.next_heat_delay = IntVar(name="next_heat_delay")
+        self.next_heat_timer: str | None = None
         # Preview
         self.appearance_preview = ImageVar(PILImage.Image())
         # Directories
@@ -264,6 +267,8 @@ class Model:
         self.time_threshold.set(data.getfloat("time_threshold", 0.30))
         self.dq_mode.set(data.get("dq_mode", DQMode.IGNORE))
         self.autosave_scoreboard.set(data.getboolean("autosave_scoreboard", False))
+        self.auto_next_heat.set(data.getboolean("auto_next_heat", False))
+        self.next_heat_delay.set(data.getint("next_heat_delay", 8))
         self.dir_startlist.set(data.get("dir_startlist", "C:\\swmeets8"))
         self.result_format.set(data.get("result_format", "Dolphin - do4"))
         self.dir_results.set(data.get("dir_results", "C:\\CTSDolphin"))
@@ -310,6 +315,8 @@ class Model:
             "dir_autosave": self.dir_autosave.get(),
             "client_id": self.client_id.get(),
             "analytics": str(self.analytics.get()),
+            "auto_next_heat": str(self.auto_next_heat.get()),
+            "next_heat_delay": str(self.next_heat_delay.get()),
         }
         with open(filename, "w", encoding="utf-8") as file:
             config.write(file)

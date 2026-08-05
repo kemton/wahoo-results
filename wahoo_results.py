@@ -228,6 +228,25 @@ def setup_scb_watcher(model: Model, observer: BaseObserver) -> None:
         startlists = ColoradoSCB().full_program(directory)
         model.startlist_contents.set(startlists)
 
+        if model.latest_result.get() is None:
+            all_heats = sorted(
+                heat
+                for event_heats in startlists.values()
+                for heat in event_heats
+            )
+
+            if all_heats:
+                first_heat = all_heats[0]
+
+                scoreboard = ScoreboardImage(
+                    imagecast_types.IMAGE_SIZE,
+                    first_heat,
+                    model,
+                    show_results=False,
+                )
+
+                model.scoreboard.set(scoreboard.image)
+
     def scb_dir_updated() -> None:
         """When the startlist directory is changed, update the watched to look at the new directory and trigger processing of the startlists."""
         path = model.dir_startlist.get()
@@ -324,6 +343,48 @@ def _process_racedir(model: Model) -> None:
 
     threading.Thread(target=_bg_process_racedir, daemon=True).start()
 
+def _find_next_heat(model: Model, current: raceinfo.Heat) -> raceinfo.Heat | None:
+    """Find the heat immediately following the supplied heat."""
+
+    program = model.startlist_contents.get()
+
+    all_heats = sorted(
+        heat
+        for event_heats in program.values()
+        for heat in event_heats
+    )
+
+    for index, heat in enumerate(all_heats):
+        if heat.event == current.event and heat.heat == current.heat:
+            if index + 1 < len(all_heats):
+                return all_heats[index + 1]
+            return None
+
+    return None
+
+def _show_next_heat(model: Model, current: raceinfo.Heat) -> None:
+    """Display the start list for the heat following the current result."""
+
+    model.next_heat_timer = None
+
+    next_heat = _find_next_heat(model, current)
+
+    if next_heat is None:
+        logger.info(
+            "No next heat found after Event %s Heat %s",
+            current.event,
+            current.heat,
+        )
+        return
+
+    scoreboard = ScoreboardImage(
+        imagecast_types.IMAGE_SIZE,
+        next_heat,
+        model,
+        show_results=False,
+    )
+
+    model.scoreboard.set(scoreboard.image)
 
 def _process_new_result(model: Model, file: str) -> None:
     """Process a new race result that has been detected."""
@@ -344,9 +405,20 @@ def _process_new_result(model: Model, file: str) -> None:
                 return
 
             def _ui_update() -> None:
+                if model.next_heat_timer is not None:
+                    model.root.after_cancel(model.next_heat_timer)
+                    model.next_heat_timer = None
                 scoreboard = ScoreboardImage(imagecast_types.IMAGE_SIZE, result, model)
                 model.scoreboard.set(scoreboard.image)
                 model.latest_result.set(result)
+
+                if model.auto_next_heat.get():
+                    delay_ms = model.next_heat_delay.get() * 1000
+
+                    model.next_heat_timer = model.root.after(
+                        delay_ms,
+                        lambda: _show_next_heat(model, result),
+                    )
 
                 if autosave_enabled:
 
@@ -583,6 +655,9 @@ def main() -> None:  # noqa: PLR0915
     # Connections for the appearance tab
     setup_appearance(model)
 
+    # Set initial scoreboard image
+    model.scoreboard.set(waiting_screen(imagecast_types.IMAGE_SIZE, model))
+
     # Connections for the directories tab
     scb_observer = Observer()
     scb_observer.start()
@@ -609,8 +684,7 @@ def main() -> None:  # noqa: PLR0915
     setup_run(model, icast)
     icast.start()
 
-    # Set initial scoreboard image
-    model.scoreboard.set(waiting_screen(imagecast_types.IMAGE_SIZE, model))
+    # Scoreboard behaviour/actions
     setup_ext_scoreboard(model)
     setup_clear_scoreboard(model)
 

@@ -415,6 +415,41 @@ class _configTab(ttk.Frame):
         dirsel.grid(column=1, row=4, columnspan=4, sticky="news", pady=_PADDING)
         ToolTip(dirsel, "Directory to automatically save scoreboard images to")
 
+        ttk.Label(opt_frame, text="Show next heat:", anchor="e").grid(
+            column=3, row=1, sticky="news", padx=(15 * _PADDING, 0)
+        )
+
+        next_heat_cb = ttk.Checkbutton(
+           opt_frame,
+            variable=self._vm.auto_next_heat,
+        )
+        next_heat_cb.grid(column=4, row=1, sticky="nws", pady=_PADDING)
+
+        ToolTip(
+           next_heat_cb,
+           "Automatically show the next heat after displaying results",
+        )
+
+        ttk.Label(opt_frame, text="Next heat delay:", anchor="e").grid(
+            column=3, row=2, sticky="news", padx=(15 * _PADDING, 0)
+        )
+
+        next_heat_spin = ttk.Spinbox(
+            opt_frame,
+            from_=1,
+            to=120,
+            increment=1,
+            width=4,
+            textvariable=self._vm.next_heat_delay,
+        )
+
+        next_heat_spin.grid(column=4, row=2, sticky="nws", pady=_PADDING)
+
+        ToolTip(
+           next_heat_spin,
+           "Seconds to display results before showing the next heat",
+        )
+
         return opt_frame
 
     def _preview(self, parent: Widget) -> Widget:
