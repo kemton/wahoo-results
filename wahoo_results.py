@@ -632,6 +632,50 @@ def _show_next_heat(model: Model, current: raceinfo.Heat) -> None:
     else:
         model.scoreboard.set(scoreboard.image)
 
+def setup_selected_heat(model: Model) -> None:
+    """Connect the Run-tab manual heat display button."""
+
+    def show_selected_heat() -> None:
+        program = model.startlist_contents.get()
+
+        selected_event = model.selected_live_event.get()
+        selected_heat = model.selected_live_heat.get()
+
+        if not selected_event or not selected_heat:
+            return
+
+        event = selected_event.split(" - ", 1)[0]
+
+        try:
+            heat_num = int(selected_heat)
+        except ValueError:
+            return
+
+        heats = program.get(event, [])
+
+        selected = next(
+            (
+                heat
+                for heat in heats
+                if heat.heat == heat_num
+            ),
+            None,
+        )
+
+        if selected is None:
+            return
+
+        scoreboard = ScoreboardImage(
+            model.scoreboard.get().size,
+            selected,
+            model,
+            show_results=False,
+        )
+
+        model.scoreboard.set(scoreboard.image)
+
+    model.show_selected_heat.add(show_selected_heat)
+
 def _process_new_result(model: Model, file: str) -> None:
     """Process a new race result that has been detected."""
     timing_system = model.timing_system
@@ -932,6 +976,7 @@ def main() -> None:  # noqa: PLR0915
     icast = imagecast.ImageCast(9998)
     setup_run(model, icast)
     setup_event_results(model)
+    setup_selected_heat(model)
     icast.start()
 
     # Scoreboard behaviour/actions

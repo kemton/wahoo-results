@@ -571,6 +571,7 @@ class _runTab(ttk.Frame):
         frame.rowconfigure(0, weight=1)
         frame.rowconfigure(1, weight=0)
         frame.rowconfigure(2, weight=0)
+        frame.rowconfigure(3, weight=0)
         frame.columnconfigure(0, weight=1)
         latestres = widgets.RaceResultView(
             frame, self._vm.latest_result, time_threshold_var=self._vm.time_threshold
@@ -578,7 +579,8 @@ class _runTab(ttk.Frame):
         latestres.grid(column=0, row=0, sticky="news")
         ToolTip(latestres, "Raw data from the latest race result")
         self._lcolumn_buttonrow(frame).grid(column=0, row=1, sticky="news")
-        self._event_results_controls(frame).grid(column=0, row=2, sticky="news", padx=1, pady=4)
+        self._heat_controls(frame).grid(column=0, row=2, sticky="news", padx=1, pady=4)
+        self._event_results_controls(frame).grid(column=0, row=3, sticky="news", padx=1, pady=4)
         return frame
 
     def _lcolumn_buttonrow(self, parent: Widget) -> Widget:
@@ -618,6 +620,169 @@ class _runTab(ttk.Frame):
         ccs = widgets.ChromcastSelector(frame, self._vm.cc_status)
         ccs.grid(column=0, row=0, sticky="news")
         ToolTip(ccs, "Chromecasts that have been detected. Click to toggle.")
+        return frame
+
+    def _heat_controls(self, parent: Widget) -> Widget:
+        frame = ttk.LabelFrame(parent, text="Current Heat")
+
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(
+            frame,
+            text="Event:",
+            anchor="e",
+        ).grid(
+            column=0,
+            row=0,
+            sticky="news",
+            padx=2,
+            pady=2,
+        )
+
+        event_dd = ttk.Combobox(
+            frame,
+            textvariable=self._vm.selected_live_event,
+            state="readonly",
+        )
+
+        event_dd.grid(
+            column=1,
+            row=0,
+            sticky="news",
+            padx=2,
+            pady=2,
+        )
+
+        ttk.Label(
+            frame,
+            text="Heat:",
+            anchor="e",
+        ).grid(
+            column=2,
+            row=0,
+            sticky="news",
+            padx=2,
+            pady=2,
+        )
+
+        heat_dd = ttk.Combobox(
+            frame,
+            textvariable=self._vm.selected_live_heat,
+            state="readonly",
+            width=5,
+        )
+
+        heat_dd.grid(
+            column=3,
+            row=0,
+            padx=2,
+            pady=2,
+        )
+
+        show_btn = ttk.Button(
+            frame,
+            text="Show Heat",
+            command=self._vm.show_selected_heat.run,
+        )
+
+        show_btn.grid(
+            column=4,
+            row=0,
+            padx=2,
+            pady=2,
+        )
+
+        def update_heats(
+            _var_name: str = "",
+            _index: str = "",
+            _mode: str = "",
+        ) -> None:
+            program = self._vm.startlist_contents.get()
+            selected = self._vm.selected_live_event.get()
+
+            if not selected:
+                heat_dd["values"] = []
+                self._vm.selected_live_heat.set("")
+                return
+
+            event = selected.split(" - ", 1)[0]
+            heats = program.get(event, [])
+
+            heat_values = [
+                str(heat.heat)
+                for heat in heats
+                if heat.heat is not None
+            ]
+
+            heat_dd["values"] = heat_values
+
+            if heat_values:
+                current = self._vm.selected_live_heat.get()
+
+                if current not in heat_values:
+                    self._vm.selected_live_heat.set(heat_values[0])
+            else:
+                self._vm.selected_live_heat.set("")
+
+        def update_events(
+            _var_name: str = "",
+            _index: str = "",
+            _mode: str = "",
+        ) -> None:
+            program = self._vm.startlist_contents.get()
+
+            events: list[str] = []
+
+            for event, heats in program.items():
+                if not heats:
+                    continue
+
+                description = heats[0].description or ""
+
+                if description:
+                    events.append(f"{event} - {description}")
+                else:
+                    events.append(str(event))
+
+            event_dd["values"] = events
+
+            current = self._vm.selected_live_event.get()
+
+            if current not in events:
+                if events:
+                    self._vm.selected_live_event.set(events[0])
+                else:
+                    self._vm.selected_live_event.set("")
+
+            update_heats()
+
+        self._vm.startlist_contents.trace_add(
+            "write",
+            update_events,
+        )
+
+        self._vm.selected_live_event.trace_add(
+            "write",
+            update_heats,
+        )
+
+        update_events()
+
+        ToolTip(
+            event_dd,
+            "Select the event to display on the scoreboard",
+        )
+
+        ToolTip(
+            heat_dd,
+            "Select the heat to display on the scoreboard",
+        )
+
+        ToolTip(
+            show_btn,
+            "Display the selected heat start list on the scoreboard",
+        )
+
         return frame
 
     def _preview(self, parent: Widget) -> Widget:

@@ -172,6 +172,7 @@ class Model:
         self.scoreboard_window: Toplevel | None = None
         self.clear_scoreboard = CallbackList()
         self.show_event_results = CallbackList()
+        self.show_selected_heat = CallbackList()
         ########################################
         ## Entry fields
         self.font_normal = StringVar(name="font_normal")
@@ -218,6 +219,8 @@ class Model:
         self.scoreboard = ImageVar(PILImage.Image())
         self.latest_result = RaceResultVar(None)
         self.selected_results_event = StringVar(name="selected_results_event")
+        self.selected_live_event = StringVar(name="selected_live_event")
+        self.selected_live_heat = StringVar(name="selected_live_heat")
         # misc
         self.client_id = StringVar(name="client_id")
         self.analytics = BooleanVar(name="analytics")
