@@ -173,6 +173,7 @@ class Model:
         self.clear_scoreboard = CallbackList()
         self.show_event_results = CallbackList()
         self.show_selected_heat = CallbackList()
+        self.refresh_event_results_state = CallbackList()
         ########################################
         ## Entry fields
         self.font_normal = StringVar(name="font_normal")
@@ -203,6 +204,7 @@ class Model:
         self.event_results_timer: str | None = None
         self.event_results_active = False
         self.event_results_restore_image: Image.Image | None = None
+        self.manual_heat_active = False
         # Preview
         self.appearance_preview = ImageVar(PILImage.Image())
         # Directories

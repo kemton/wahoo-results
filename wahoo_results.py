@@ -522,27 +522,31 @@ def _resolve_results_event(model: Model) -> str | None:
     if not program:
         return None
 
-    latest = model.latest_result.get()
+    if model.manual_heat_active:
+        selected = model.selected_live_event.get()
 
-    if latest is None:
-        # No race has completed yet, so there is no previous event.
-        return None
+        if not selected:
+            return None
 
-    next_heat = _find_next_heat(model, latest)
+        current_event = selected.split(" - ", 1)[0]
+    else:
+        latest = model.latest_result.get()
 
-    # Normally use the next scheduled heat to determine which event
-    # the meet is currently on. At the end of the meet there may be
-    # no next heat, so fall back to the latest result.
-    current_event = (
-        next_heat.event
-        if next_heat is not None
-        else latest.event
-    )
+        if latest is None:
+            return None
 
-    program_order = list(program.keys())
+        next_heat = _find_next_heat(model, latest)
+
+        current_event = (
+            next_heat.event
+            if next_heat is not None
+            else latest.event
+        )
 
     if current_event is None:
         return None
+
+    program_order = list(program.keys())
 
     try:
         current_index = program_order.index(current_event)
@@ -672,7 +676,9 @@ def setup_selected_heat(model: Model) -> None:
             show_results=False,
         )
 
+        model.manual_heat_active = True
         model.scoreboard.set(scoreboard.image)
+        model.refresh_event_results_state.run()
 
     model.show_selected_heat.add(show_selected_heat)
 
@@ -695,6 +701,8 @@ def _process_new_result(model: Model, file: str) -> None:
                 return
 
             def _ui_update() -> None:
+                model.manual_heat_active = False
+                model.refresh_event_results_state.run()
                 # A newly completed race always takes priority over any full-event results slideshow
                 _cancel_event_results(model)
 
