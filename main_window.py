@@ -672,6 +672,46 @@ class _runTab(ttk.Frame):
             pady=2,
         )
 
+        def update_show_button(
+            _var_name: str = "",
+            _index: str = "",
+            _mode: str = "",
+        ) -> None:
+            selected = self._vm.selected_results_event.get()
+            results = self._vm.results_contents.get()
+
+            if selected == "Previous":
+                program = self._vm.startlist_contents.get()
+
+                for event, scheduled_heats in program.items():
+                    if not scheduled_heats:
+                        continue
+
+                    completed_heat_numbers = {
+                        heat.heat
+                        for heat in results
+                        if heat.event == event
+                    }
+
+                    scheduled_heat_numbers = {
+                        heat.heat
+                        for heat in scheduled_heats
+                    }
+
+                    if scheduled_heat_numbers.issubset(completed_heat_numbers):
+                        show_btn.state(["!disabled"])
+                        return
+
+                show_btn.state(["disabled"])
+                return
+
+            event = selected.split(" - ", 1)[0]
+
+            if any(heat.event == event for heat in results):
+                show_btn.state(["!disabled"])
+            else:
+                show_btn.state(["disabled"])
+
         ToolTip(
             event_dd,
             "Select an event whose complete results should be displayed",
@@ -705,12 +745,30 @@ class _runTab(ttk.Frame):
             if current not in event_dd["values"]:
                 self._vm.selected_results_event.set("Previous")
 
+            update_show_button()
+
         self._vm.startlist_contents.trace_add(
             "write",
             update_events,
         )
 
+        self._vm.startlist_contents.trace_add(
+            "write",
+            update_events,
+        )
+
+        self._vm.results_contents.trace_add(
+            "write",
+            update_show_button,
+        )
+
+        self._vm.selected_results_event.trace_add(
+            "write",
+            update_show_button,
+        )
+
         self._vm.selected_results_event.set("Previous")
         update_events()
+        update_show_button()
 
         return frame
