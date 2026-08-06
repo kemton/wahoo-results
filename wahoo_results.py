@@ -507,7 +507,6 @@ def _show_event_results(
 
 def _resolve_results_event(model: Model) -> str | None:
     """Resolve the Run-tab event selection to an event id."""
-
     selected = model.selected_results_event.get()
 
     if not selected:
@@ -516,40 +515,44 @@ def _resolve_results_event(model: Model) -> str | None:
     if selected != "Previous":
         return selected.split(" - ", 1)[0]
 
-    # Find the most recently completed event.
-    results = model.results_contents.get()
+    # "Previous" means the event immediately before the event
+    # currently being run / displayed as the next heat.
     program = model.startlist_contents.get()
 
-    completed_events: list[str] = []
-
-    for event, scheduled_heats in program.items():
-        if not scheduled_heats:
-            continue
-
-        completed_heat_numbers = {
-            heat.heat
-            for heat in results
-            if heat.event == event
-        }
-
-        scheduled_heat_numbers = {
-            heat.heat
-            for heat in scheduled_heats
-        }
-
-        if scheduled_heat_numbers.issubset(completed_heat_numbers):
-            completed_events.append(event)
-
-    if not completed_events:
+    if not program:
         return None
 
-    # Preserve meet-program order.
+    latest = model.latest_result.get()
+
+    if latest is None:
+        # No race has completed yet, so there is no previous event.
+        return None
+
+    next_heat = _find_next_heat(model, latest)
+
+    # Normally use the next scheduled heat to determine which event
+    # the meet is currently on. At the end of the meet there may be
+    # no next heat, so fall back to the latest result.
+    current_event = (
+        next_heat.event
+        if next_heat is not None
+        else latest.event
+    )
+
     program_order = list(program.keys())
 
-    return max(
-        completed_events,
-        key=program_order.index,
-    )
+    if current_event is None:
+        return None
+
+    try:
+        current_index = program_order.index(current_event)
+    except ValueError:
+        return None
+
+    if current_index == 0:
+        return None
+
+    return program_order[current_index - 1]
 
 def _event_description(model: Model, event: str) -> str:
     program = model.startlist_contents.get()

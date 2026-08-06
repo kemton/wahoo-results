@@ -682,27 +682,67 @@ class _runTab(ttk.Frame):
 
             if selected == "Previous":
                 program = self._vm.startlist_contents.get()
+                latest = self._vm.latest_result.get()
 
-                for event, scheduled_heats in program.items():
-                    if not scheduled_heats:
-                        continue
+                if not program or latest is None:
+                    show_btn.state(["disabled"])
+                    return
 
-                    completed_heat_numbers = {
-                        heat.heat
-                        for heat in results
-                        if heat.event == event
-                    }
+                program_order = list(program.keys())
 
-                    scheduled_heat_numbers = {
-                        heat.heat
-                        for heat in scheduled_heats
-                    }
+                # Build the heats in meet order.
+                heats = [
+                    heat
+                    for event_heats in program.values()
+                    for heat in event_heats
+                ]
 
-                    if scheduled_heat_numbers.issubset(completed_heat_numbers):
-                        show_btn.state(["!disabled"])
-                        return
+                # Find the latest completed heat in that list.
+                current_index = next(
+                    (
+                        index
+                        for index, heat in enumerate(heats)
+                        if heat.event == latest.event
+                        and heat.heat == latest.heat
+                    ),
+                    None,
+                )
 
-                show_btn.state(["disabled"])
+                if current_index is None:
+                    show_btn.state(["disabled"])
+                    return
+
+                # Determine the event currently being run/displayed.
+                if current_index + 1 < len(heats):
+                    current_event = heats[current_index + 1].event
+                else:
+                    current_event = latest.event
+
+                if current_event is None:
+                    show_btn.state(["disabled"])
+                    return
+
+                try:
+                    event_index = program_order.index(current_event)
+                except ValueError:
+                    show_btn.state(["disabled"])
+                    return
+
+                # There is no previous event if we're still at the first event.
+                if event_index == 0:
+                    show_btn.state(["disabled"])
+                    return
+
+                previous_event = program_order[event_index - 1]
+
+                if any(
+                    heat.event == previous_event
+                    for heat in results
+                ):
+                    show_btn.state(["!disabled"])
+                else:
+                    show_btn.state(["disabled"])
+
                 return
 
             event = selected.split(" - ", 1)[0]
@@ -711,16 +751,6 @@ class _runTab(ttk.Frame):
                 show_btn.state(["!disabled"])
             else:
                 show_btn.state(["disabled"])
-
-        ToolTip(
-            event_dd,
-            "Select an event whose complete results should be displayed",
-        )
-
-        ToolTip(
-            show_btn,
-            "Temporarily display the selected event results on the scoreboard",
-        )
 
         def update_events(_var_name: str = "", _index: str = "", _mode: str = "") -> None:
             program = self._vm.startlist_contents.get()
@@ -752,12 +782,12 @@ class _runTab(ttk.Frame):
             update_events,
         )
 
-        self._vm.startlist_contents.trace_add(
+        self._vm.results_contents.trace_add(
             "write",
-            update_events,
+            update_show_button,
         )
 
-        self._vm.results_contents.trace_add(
+        self._vm.latest_result.trace_add(
             "write",
             update_show_button,
         )
