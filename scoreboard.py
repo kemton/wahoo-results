@@ -149,6 +149,9 @@ def event_results_screen(
     )
 
     y += line_height
+    name_x = edge_l + int(size[0] * 0.14)
+    time_width = int(draw.textlength("00:00.00", time_font) * 1.1)
+    name_width = edge_r - name_x - time_width
 
     # Result rows
     for row_num, (place, lane) in enumerate(results):
@@ -174,6 +177,12 @@ def event_results_screen(
             raw_name,
         )
 
+        while (
+            len(name_variants) > 1
+            and draw.textlength(name_variants[0], normal_font) > name_width
+        ):
+            name_variants.pop(0)
+
         draw.text(
             (edge_l + int(size[0] * 0.14), y),
             name_variants[0],
@@ -196,6 +205,12 @@ def event_results_screen(
             fill=color,
             anchor="rm",
         )
+
+        name_x = edge_l + int(size[0] * 0.14)
+
+        # Leave enough room on the right for the result time.
+        time_width = int(draw.textlength("00:00.00", time_font) * 1.1)
+        name_width = edge_r - name_x - time_width
 
         y += line_height
 
