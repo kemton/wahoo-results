@@ -124,6 +124,9 @@ def event_results_screen(
     y += line_height
 
     # Column headings
+    name_x = edge_l + int(size[0] * 0.14)
+    team_x = edge_r - int(size[0] * 0.20)
+    name_width = team_x - name_x - int(size[0] * 0.03)
     draw.text(
         (edge_l, y),
         "Place",
@@ -133,11 +136,19 @@ def event_results_screen(
     )
 
     draw.text(
-        (edge_l + int(size[0] * 0.14), y),
+        (name_x, y),
         "Name",
         font=normal_font,
         fill=model.color_event.get(),
         anchor="lm",
+    )
+
+    draw.text(
+        (team_x, y),
+        "Team",
+        font=normal_font,
+        fill=model.color_event.get(),
+        anchor="rm",
     )
 
     draw.text(
@@ -149,9 +160,6 @@ def event_results_screen(
     )
 
     y += line_height
-    name_x = edge_l + int(size[0] * 0.14)
-    time_width = int(draw.textlength("00:00.00", time_font) * 1.1)
-    name_width = edge_r - name_x - time_width
 
     # Result rows
     for row_num, (place, lane) in enumerate(results):
@@ -184,11 +192,21 @@ def event_results_screen(
             name_variants.pop(0)
 
         draw.text(
-            (edge_l + int(size[0] * 0.14), y),
+            (name_x, y),
             name_variants[0],
             font=normal_font,
             fill=color,
             anchor="lm",
+        )
+
+        team_text = lane.team or ""
+
+        draw.text(
+            (team_x, y),
+            team_text,
+            font=normal_font,
+            fill=color,
+            anchor="rm",
         )
 
         if lane.is_dq:
@@ -205,12 +223,6 @@ def event_results_screen(
             fill=color,
             anchor="rm",
         )
-
-        name_x = edge_l + int(size[0] * 0.14)
-
-        # Leave enough room on the right for the result time.
-        time_width = int(draw.textlength("00:00.00", time_font) * 1.1)
-        name_width = edge_r - name_x - time_width
 
         y += line_height
 
